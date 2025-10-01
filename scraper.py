@@ -253,10 +253,32 @@ class CS500Scraper:
         self.match_ids = set()  # Set to store extracted match IDs
         
         # Get proxy from parameter or environment variable
-        import os
         self.proxy_server = proxy_server or os.getenv('PROXY_SERVER')
         if self.proxy_server:
             print(f"🌐 Using proxy: {self.proxy_server}")
+            self._test_proxy()
+    
+    def _test_proxy(self):
+        """Test if proxy is accessible."""
+        try:
+            print(f"🧪 Testing proxy connection...")
+            import urllib.request
+            
+            proxy_handler = urllib.request.ProxyHandler({
+                'http': self.proxy_server,
+                'https': self.proxy_server
+            })
+            opener = urllib.request.build_opener(proxy_handler)
+            opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+            
+            # Try to get IP info through proxy
+            response = opener.open('https://api.ipify.org?format=json', timeout=10)
+            ip_data = response.read().decode('utf-8')
+            print(f"✅ Proxy working! Your IP through proxy: {ip_data}")
+            
+        except Exception as e:
+            print(f"⚠️ Proxy test failed: {e}")
+            print(f"⚠️ This may cause issues with CS500 scraping")
 
     def extract_match_id_from_href(self, href: str) -> Optional[str]:
         """
@@ -354,40 +376,55 @@ class CS500Scraper:
             for g in games:
                 path = self.lol_path if g == "lol" else self.cs2_path
                 try:
+                    print(f"🌐 [{g}] Navigating to: {path}")
                     page = await browser.get(path)
+                    print(f"✅ [{g}] Page navigation started")
+                    
+                    # Give page time to start loading
+                    await asyncio.sleep(3)
+                    
                 except Exception as e:
-                    print(f"Failed to navigate to {g} path: {e}")
+                    print(f"❌ [{g}] Failed to navigate: {e}")
                     continue
 
                 # Check for unavailable page with proper error handling
                 try:
                     unavailable_element = await page.select('div.unavailable')
                     if unavailable_element:
-                        print(f"{g} page is unavailable")
+                        print(f"⚠️ [{g}] Page is unavailable")
                         continue
                 except Exception as e:
-                    print(f"Error checking for unavailable element on {g}: {e}")
+                    print(f"⚠️ [{g}] Error checking for unavailable element: {e}")
 
                 # Add retry logic for the main scraping
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        await page.wait_for('#betby', timeout=15)
+                        print(f"🔍 [{g}] Attempt {attempt + 1}/{max_retries}: Waiting for page to load...")
+                        
+                        # Increased timeout for proxy connections
+                        await page.wait_for('#betby', timeout=45)
+                        print(f"✅ [{g}] Page loaded, looking for host element...")
+                        
                         host = await page.select('div[style*="background-color: rgb(30, 28, 37)"]')
                         
                         if not host:
-                            print(f"Host element not found on {g}, attempt {attempt + 1}/{max_retries}")
+                            print(f"⚠️ [{g}] Host element not found, attempt {attempt + 1}/{max_retries}")
                             if attempt < max_retries - 1:
-                                await asyncio.sleep(2)  # Wait before retry
+                                print(f"⏳ [{g}] Waiting 5 seconds before retry...")
+                                await asyncio.sleep(5)  # Longer wait for proxy
+                                # Try reloading the page
+                                await page.reload()
                                 continue
                             else:
-                                print(f"Failed to find host element on {g} after all retries")
+                                print(f"❌ [{g}] Failed to find host element after all retries")
                                 break
                         
                         await host.update()
                         root = host.shadow_children[0]
 
                         links = await root.query_selector_all('[data-editor-id="eventCardContent"]')
+                        print(f"🎯 [{g}] Found {len(links)} match links")
                         await self.fetch_matchids(links)
 
 
@@ -417,11 +454,21 @@ class CS500Scraper:
                         break  # Success, exit retry loop for this path
                         
                     except Exception as e:
-                        print(f"{g} attempt {attempt + 1}/{max_retries} failed: {e}")
+                        print(f"❌ [{g}] Attempt {attempt + 1}/{max_retries} failed: {e}")
                         if attempt < max_retries - 1:
-                            await asyncio.sleep(2)  # Wait before retry
+                            print(f"⏳ [{g}] Waiting 5 seconds before retry...")
+                            await asyncio.sleep(5)  # Longer wait for proxy
+                            # Try navigating to the page again
+                            try:
+                                print(f"🔄 [{g}] Reloading page...")
+                                await page.reload()
+                            except:
+                                pass
                         else:
-                            print(f"All attempts failed for {g}")
+                            print(f"💀 [{g}] All attempts failed. Possible causes:")
+                            print(f"   - Proxy is too slow or blocked")
+                            print(f"   - CS500 is down or changed layout")
+                            print(f"   - Page requires longer load time")
                             break
 
             # Print and return all collected match IDs
@@ -483,7 +530,7 @@ class CS500Scraper:
         }
         
         async def fetch_single_market(session: aiohttp.ClientSession, match_id: str) -> Optional[Dict[str, Any]]:
-            """Fetch market data for a single match ID."""
+            """Fetch market data for a single match ID (no proxy)."""
             try:
                 url = f"{self.base_url}/{match_id}"
                 async with session.get(url, headers=headers) as response:
@@ -497,11 +544,42 @@ class CS500Scraper:
                 print(f"Error fetching market for match {match_id}: {e}")
                 return None
         
-        # Create session with timeout
+        async def fetch_single_market_with_proxy(session: aiohttp.ClientSession, match_id: str, proxy: str) -> Optional[Dict[str, Any]]:
+            """Fetch market data for a single match ID through proxy."""
+            try:
+                url = f"{self.base_url}/{match_id}"
+                async with session.get(url, headers=headers, proxy=proxy) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return self._parse_market_data(data, match_id)
+                    else:
+                        print(f"⚠️ Failed to fetch market {match_id} via proxy: HTTP {response.status}")
+                        return None
+            except Exception as e:
+                print(f"❌ Error fetching market {match_id} via proxy: {e}")
+                return None
+        
+        # Create session with timeout and proxy
         timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        
+        # Configure proxy for aiohttp if available
+        connector = None
+        if self.proxy_server:
+            print(f"🌐 Using proxy for market API calls: {self.proxy_server}")
+            # aiohttp uses a different proxy format
+            connector = aiohttp.TCPConnector()
+        
+        session_kwargs = {"timeout": timeout}
+        if connector:
+            session_kwargs["connector"] = connector
+        
+        async with aiohttp.ClientSession(**session_kwargs) as session:
             # Create tasks for all match IDs
-            tasks = [fetch_single_market(session, match_id) for match_id in match_ids]
+            # Pass proxy URL to each request
+            if self.proxy_server:
+                tasks = [fetch_single_market_with_proxy(session, match_id, self.proxy_server) for match_id in match_ids]
+            else:
+                tasks = [fetch_single_market(session, match_id) for match_id in match_ids]
             
             # Execute all requests concurrently
             results = await asyncio.gather(*tasks, return_exceptions=True)
