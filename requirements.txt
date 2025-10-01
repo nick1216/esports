@@ -7,7 +7,7 @@ requests==2.31.0
 aiohttp==3.9.1
 
 # Browser Automation
-nodriver>=0.47.0
+playwright==1.48.0
 
 # Scheduling
 apscheduler==3.10.4

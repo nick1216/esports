@@ -13,6 +13,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from database import Database
 from scraper import PinnacleScraper, CS500Scraper
+from scraper_playwright import CS500ScraperPlaywright
 from functions import find_best_match, infer_sport_from_pinnacle_event, infer_sport_from_cs500_event
 
 # Setup logging
@@ -34,8 +35,11 @@ app.add_middleware(
 # Initialize database and scrapers
 db = Database()
 pinnacle_scraper = PinnacleScraper()
-# CS500Scraper will automatically use PROXY_SERVER environment variable if set
+# CS500Scraper for market data (API calls only, no browser)
 cs500_scraper = CS500Scraper()
+# CS500ScraperPlaywright for match IDs (browser automation with proxy)
+# Will automatically use PROXY_SERVER environment variable if set
+cs500_playwright_scraper = CS500ScraperPlaywright()
 
 # Pinnacle configuration
 PINNACLE_CONFIG = {
@@ -302,8 +306,8 @@ async def scrape_cs500_matchids():
     try:
         logger.info("🎮 Starting CS500 match ID scraper (browser automation)")
         
-        # Run browser automation to get match IDs
-        match_ids = await cs500_scraper.get_matchids()
+        # Run browser automation to get match IDs using Playwright
+        match_ids = await cs500_playwright_scraper.get_matchids()
         
         if not match_ids or len(match_ids) == 0:
             return {
@@ -360,9 +364,9 @@ async def _run_cs500_full_scrape():
     try:
         logger.info("🎮 Starting full CS500 scrape (match IDs + markets)")
         
-        # Step 1: Get match IDs via browser automation
+        # Step 1: Get match IDs via browser automation using Playwright
         logger.info("Step 1: Collecting match IDs...")
-        match_ids = await cs500_scraper.get_matchids()
+        match_ids = await cs500_playwright_scraper.get_matchids()
         
         if not match_ids or len(match_ids) == 0:
             logger.warning("⚠️ No CS500 match IDs found")

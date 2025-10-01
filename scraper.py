@@ -360,11 +360,26 @@ class CS500Scraper:
             
             # Add proxy configuration if provided
             if self.proxy_server:
-                browser_args.append(f"--proxy-server={self.proxy_server}")
-                print(f"🌐 Browser configured with proxy: {self.proxy_server}")
+                # Parse proxy URL to extract host:port (Chrome doesn't support auth in --proxy-server)
+                # Format: http://user:pass@host:port or socks5://user:pass@host:port
+                try:
+                    if '@' in self.proxy_server:
+                        # Extract just the host:port part for Chrome
+                        proxy_parts = self.proxy_server.split('@')
+                        host_port = proxy_parts[1] if len(proxy_parts) > 1 else self.proxy_server
+                        
+                        # Try SOCKS5 protocol (often more reliable)
+                        browser_args.append(f"--proxy-server=socks5://{host_port}")
+                        print(f"🌐 Browser configured with SOCKS5 proxy: socks5://{host_port}")
+                    else:
+                        browser_args.append(f"--proxy-server={self.proxy_server}")
+                        print(f"🌐 Browser configured with proxy: {self.proxy_server}")
+                except Exception as e:
+                    print(f"⚠️ Proxy configuration failed: {e}")
+                    print(f"⚠️ Continuing without proxy...")
             
             browser_config = {
-                "headless": True,  # Try headless with stealth
+                "headless": False,  # Headless with stealth
                 "browser_args": browser_args,
             }
             
@@ -410,7 +425,7 @@ class CS500Scraper:
                         
                         # Check if #betby element exists
                         try:
-                            await page.wait_for('#betby', timeout=45)
+                            await page.wait_for('#betby', timeout=15)
                             print(f"✅ [{g}] #betby element found, looking for host...")
                         except Exception as e:
                             print(f"⚠️ [{g}] #betby not found: {e}")
