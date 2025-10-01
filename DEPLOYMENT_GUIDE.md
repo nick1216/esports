@@ -51,9 +51,11 @@ PROXY_SERVER=http://username:password@rp.scrapegw.com:6060
 ### **Optional:**
 
 ```
-DATABASE_PATH=/app/data/esports_betting.db
+DATABASE_PATH=/data/esports_betting.db
 PLAYWRIGHT_BROWSER=chromium
 ```
+
+**Note:** Railway volume should be mounted at `/data` for database persistence.
 
 ---
 
@@ -128,15 +130,25 @@ Railway will:
 2. Install Chromium browser
 3. Start the application
 
-### **3. Set Environment Variables**
+### **3. Setup Persistent Volume**
+
+In Railway dashboard → Settings → Volumes:
+
+- Click "New Volume"
+- Mount path: `/data`
+
+This ensures your database persists across deployments.
+
+### **4. Set Environment Variables**
 
 In Railway dashboard → Variables:
 
 ```
 PROXY_SERVER=http://your-username:your-password@rp.scrapegw.com:6060
+DATABASE_PATH=/data/esports_betting.db
 ```
 
-### **4. Test the Deployment**
+### **5. Test the Deployment**
 
 Once deployed, test these endpoints:
 
