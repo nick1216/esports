@@ -3,3 +3,4 @@ aiohttp
 nodriver
 uvicorn
 fastapi
+apscheduler
