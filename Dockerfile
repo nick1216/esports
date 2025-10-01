@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     xvfb \
+    x11-utils \
     chromium \
     chromium-driver \
     fonts-liberation \
@@ -27,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 import nodriver as uc
 import re
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
@@ -319,17 +320,30 @@ class CS500Scraper:
         try:
             # Run in headed mode - Xvfb provides virtual display
             # This avoids headless detection by anti-bot systems
-            browser_config = {
-                "headless": False,
-                "expert": True
-            }
+            
+            # Browser arguments for Docker/Railway environment
+            browser_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
+                "--window-size=1920,1080",
+                "--start-maximized",
+            ]
             
             # Add proxy configuration if provided
             if self.proxy_server:
-                browser_config["browser_args"] = [
-                    f"--proxy-server={self.proxy_server}"
-                ]
+                browser_args.append(f"--proxy-server={self.proxy_server}")
                 print(f"🌐 Browser configured with proxy: {self.proxy_server}")
+            
+            browser_config = {
+                "headless": False,
+                "browser_args": browser_args,
+            }
+            
+            print(f"🔧 Browser config: headless=False, display={os.getenv('DISPLAY', 'not set')}")
             
             browser = await uc.start(**browser_config)
         except Exception as e:
