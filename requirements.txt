@@ -1,9 +1,3 @@
-fastapi
-uvicorn
 requests
 aiohttp
 nodriver
-sentence-transformers
-numpy
-python-multipart
-apscheduler
