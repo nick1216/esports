@@ -8,7 +8,11 @@ from contextlib import contextmanager
 class Database:
     """Database manager for esports betting data."""
     
-    def __init__(self, db_path: str = "esports_betting.db"):
+    def __init__(self, db_path: str = None):
+        # Use environment variable for Railway, default for local
+        import os
+        if db_path is None:
+            db_path = os.getenv("DATABASE_PATH", "esports_betting.db")
         self.db_path = db_path
         self.init_database()
     
