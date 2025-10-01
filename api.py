@@ -34,6 +34,7 @@ app.add_middleware(
 # Initialize database and scrapers
 db = Database()
 pinnacle_scraper = PinnacleScraper()
+# CS500Scraper will automatically use PROXY_SERVER environment variable if set
 cs500_scraper = CS500Scraper()
 
 # Pinnacle configuration

@@ -237,12 +237,25 @@ class PinnacleScraper:
 
 class CS500Scraper:
 
-    def __init__(self):
+    def __init__(self, proxy_server: Optional[str] = None):
+        """
+        Initialize CS500 scraper.
+        
+        Args:
+            proxy_server: Optional proxy server URL (e.g., 'http://proxy:port' or 'socks5://proxy:port')
+                         Can also be set via PROXY_SERVER environment variable
+        """
         self.brand_id = "2195256717934206976"
         self.base_url = f"https://api-h-c7818b61-608.sptpub.com/api/v3/prematch/brand/{self.brand_id}/event/en"
         self.lol_path = "https://csgo500.com/sports?bt-path=%2Fleague-of-legends-110"
         self.cs2_path = "https://csgo500.com/sports?bt-path=%2Fcounter-strike-109"
         self.match_ids = set()  # Set to store extracted match IDs
+        
+        # Get proxy from parameter or environment variable
+        import os
+        self.proxy_server = proxy_server or os.getenv('PROXY_SERVER')
+        if self.proxy_server:
+            print(f"🌐 Using proxy: {self.proxy_server}")
 
     def extract_match_id_from_href(self, href: str) -> Optional[str]:
         """
@@ -306,7 +319,19 @@ class CS500Scraper:
         try:
             # Run in headed mode - Xvfb provides virtual display
             # This avoids headless detection by anti-bot systems
-            browser = await uc.start(headless=False, expert=True)
+            browser_config = {
+                "headless": False,
+                "expert": True
+            }
+            
+            # Add proxy configuration if provided
+            if self.proxy_server:
+                browser_config["browser_args"] = [
+                    f"--proxy-server={self.proxy_server}"
+                ]
+                print(f"🌐 Browser configured with proxy: {self.proxy_server}")
+            
+            browser = await uc.start(**browser_config)
         except Exception as e:
             print(f"Failed to start browser: {e}")
             print("This might be due to running in a server environment without display support")
