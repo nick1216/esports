@@ -263,18 +263,52 @@ async def scrape_pinnacle(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=f"Failed to scrape Pinnacle: {str(e)}")
 
 
+@app.post("/api/scrape/cs500-matchids")
+async def scrape_cs500_matchids():
+    """
+    Scrape CS500 match IDs using browser automation.
+    This runs the headless browser to collect match IDs from CS500.
+    """
+    try:
+        logger.info("🎮 Starting CS500 match ID scraper (browser automation)")
+        
+        # Run browser automation to get match IDs
+        match_ids = await cs500_scraper.get_matchids()
+        
+        if not match_ids or len(match_ids) == 0:
+            return {
+                "status": "warning",
+                "message": "No CS500 match IDs found. CS500 might be down or have no matches.",
+                "match_ids_count": 0
+            }
+        
+        # Store match IDs in database
+        db.store_cs500_match_ids(list(match_ids))
+        
+        logger.info(f"✅ Collected {len(match_ids)} CS500 match IDs")
+        
+        return {
+            "status": "success",
+            "message": f"Scraped {len(match_ids)} CS500 match IDs successfully",
+            "match_ids_count": len(match_ids),
+            "match_ids": list(match_ids)
+        }
+    except Exception as e:
+        logger.error(f"❌ CS500 match ID scraping failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to scrape CS500 match IDs: {str(e)}")
+
+
 @app.post("/api/scrape/cs500")
 async def scrape_cs500(background_tasks: BackgroundTasks):
-    """Scrape CS500 markets. This will run the browser automation."""
+    """Scrape CS500 markets using existing match IDs in database."""
     try:
-        # First, get match IDs (this runs the browser scraper)
-        # Note: This should ideally run in background, but for now we'll run it directly
+        # Get match IDs from database
         match_ids = db.get_cs500_match_ids()
         
         if not match_ids:
             return {
                 "status": "warning",
-                "message": "No CS500 match IDs available. Run the CS500 match ID scraper first.",
+                "message": "No CS500 match IDs available. Run /api/scrape/cs500-matchids first.",
                 "count": 0
             }
         
@@ -289,6 +323,58 @@ async def scrape_cs500(background_tasks: BackgroundTasks):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to scrape CS500: {str(e)}")
+
+
+async def _run_cs500_full_scrape():
+    """Background task to run full CS500 scrape."""
+    try:
+        logger.info("🎮 Starting full CS500 scrape (match IDs + markets)")
+        
+        # Step 1: Get match IDs via browser automation
+        logger.info("Step 1: Collecting match IDs...")
+        match_ids = await cs500_scraper.get_matchids()
+        
+        if not match_ids or len(match_ids) == 0:
+            logger.warning("⚠️ No CS500 match IDs found")
+            return
+        
+        # Store match IDs
+        db.store_cs500_match_ids(list(match_ids))
+        logger.info(f"✅ Collected {len(match_ids)} match IDs")
+        
+        # Step 2: Scrape markets for those IDs
+        logger.info("Step 2: Scraping markets...")
+        markets = await cs500_scraper.get_markets(match_ids)
+        db.store_cs500_markets(markets)
+        logger.info(f"✅ Scraped {len(markets)} markets")
+        
+    except Exception as e:
+        logger.error(f"❌ Full CS500 scrape failed: {str(e)}")
+
+
+@app.post("/api/scrape/cs500-full")
+async def scrape_cs500_full(background_tasks: BackgroundTasks):
+    """
+    Complete CS500 scraping flow:
+    1. Run browser automation to get match IDs
+    2. Scrape markets for those match IDs
+    3. Store everything in database
+    
+    This endpoint runs the scraping in the background to avoid timeouts.
+    Check the logs to see progress.
+    """
+    try:
+        # Add the scraping task to background tasks
+        background_tasks.add_task(_run_cs500_full_scrape)
+        
+        return {
+            "status": "success",
+            "message": "CS500 scraping started in background. Check logs for progress.",
+            "note": "This may take 1-2 minutes. Refresh the page to see updated data."
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to start CS500 scrape: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start CS500 scrape: {str(e)}")
 
 
 @app.post("/api/match_markets")

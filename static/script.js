@@ -306,6 +306,43 @@ async function scrapePinnacle() {
 }
 
 // Scrape CS500
+async function scrapeCS500Full() {
+  showLoading();
+  showStatus("🎮 Starting CS500 scrape in background...", "info");
+
+  try {
+    const response = await fetch(`${API_BASE}/api/scrape/cs500-full`, {
+      method: "POST",
+    });
+    const data = await response.json();
+
+    if (data.status === "success") {
+      showStatus(
+        `✓ CS500 scraping started! This will take 1-2 minutes. Check Railway logs for progress.`,
+        "success"
+      );
+
+      // Auto-refresh after 2 minutes to show new data
+      setTimeout(() => {
+        showStatus("🔄 Refreshing data...", "info");
+        loadStats();
+        loadMarkets();
+        showStatus(
+          "✓ Data refreshed! Check if CS500 markets appeared.",
+          "success"
+        );
+      }, 120000); // 2 minutes
+    } else if (data.status === "warning") {
+      showStatus(data.message, "warning");
+    }
+  } catch (error) {
+    console.error("Failed to start CS500 scrape:", error);
+    showStatus("Failed to start CS500 scrape. Check logs!", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
 async function scrapeCS500() {
   showLoading();
   showStatus(
