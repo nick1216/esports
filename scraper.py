@@ -473,22 +473,10 @@ class CS500Scraper:
 
             # Print and return all collected match IDs
             all_ids = self.get_all_match_ids()
-            print(f"\nAll collected match IDs: {all_ids}")
+            print(f"\n✅ Collected {len(all_ids)} total match IDs: {all_ids}")
             
-            # Send match IDs to the API endpoint
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        "http://localhost:8000/cs500_matchids",
-                        json=list(all_ids)
-                    ) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            print(f"Successfully sent match IDs to API: {result}")
-                        else:
-                            print(f"Failed to send match IDs to API: HTTP {response.status}")
-            except Exception as e:
-                print(f"Error sending match IDs to API: {e}")
+            # Note: Match IDs are stored in database by the API endpoint, not sent here
+            # The calling function (in api.py) handles database storage
             
             return all_ids
 
