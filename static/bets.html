@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bet Logs - Esports EV Finder</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Bet Logs</h1>
+            <p class="subtitle">Track your betting performance and analyze results</p>
+            <nav class="header-nav">
+                <a href="/" class="nav-link">Markets</a>
+                <a href="/bets" class="nav-link active">Bet Logs</a>
+                <a href="/archive" class="nav-link">Archive</a>
+            </nav>
+        </header>
+
+        <!-- Bet Stats Dashboard -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total-bets">-</div>
+                <div class="stat-label">Total Bets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total-staked">$-</div>
+                <div class="stat-label">Total Staked</div>
+            </div>
+            <div class="stat-card positive">
+                <div class="stat-value" id="stat-total-profit">$-</div>
+                <div class="stat-label">Total Profit/Loss</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-avg-ev">-%</div>
+                <div class="stat-label">Avg EV %</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total-ev">$-</div>
+                <div class="stat-label">Total EV $</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-avg-clv">-%</div>
+                <div class="stat-label">Avg CLV</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-positive-clv-rate">-%</div>
+                <div class="stat-label">+CLV Rate</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>📈 EV Distribution</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="ev-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>💰 Cumulative Profit/Loss</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="profit-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>💵 Cumulative EV Generated ($)</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="ev-dollars-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>📊 Expected Value vs Actual Value</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="ev-av-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>🎯 Closing Line Value (CLV) Tracking</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="clv-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <button class="btn btn-primary" onclick="loadBets()">
+                    🔄 Refresh
+                </button>
+
+                <label for="status-filter">Status:</label>
+                <select id="status-filter" onchange="loadBets()">
+                    <option value="">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="won">Won</option>
+                    <option value="lost">Lost</option>
+                    <option value="void">Void</option>
+                </select>
+
+                <label for="sport-filter-bets">Sport:</label>
+                <select id="sport-filter-bets" onchange="loadBets()">
+                    <option value="">All Sports</option>
+                    <option value="cs2">CS2</option>
+                    <option value="lol">League of Legends</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Bets Table -->
+        <div class="table-container">
+            <table id="bets-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Date</th>
+                        <th>Sport</th>
+                        <th>Event</th>
+                        <th>Match</th>
+                        <th>Bet On</th>
+                        <th>Odds</th>
+                        <th>Closing</th>
+                        <th>Stake</th>
+                        <th>EV %</th>
+                        <th>EV $</th>
+                        <th>CLV</th>
+                        <th>Potential Return</th>
+                        <th>Status</th>
+                        <th>Profit/Loss</th>
+                        <th>Change Result</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="bets-body">
+                    <tr>
+                        <td colspan="17" class="no-data">No bets found. Place a bet from the Markets page to get
+                            started.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message" style="display: none;"></div>
+    </div>
+
+    <script src="/static/bets.js"></script>
+</body>
+
+</html>

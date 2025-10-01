@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esports EV Finder</title>
+    <link rel="stylesheet" href="/static/styles.css?v=4">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ Esports EV Finder</h1>
+            <p class="subtitle">Find positive EV bets by comparing de-vigged Pinnacle odds with CS500</p>
+            <nav class="header-nav">
+                <a href="/" class="nav-link active">Markets</a>
+                <a href="/bets" class="nav-link">Bet Logs</a>
+                <a href="/archive" class="nav-link">Archive</a>
+            </nav>
+        </header>
+
+        <!-- Stats Dashboard -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-pinnacle">-</div>
+                <div class="stat-label">Pinnacle Markets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-cs500">-</div>
+                <div class="stat-label">CS500 Markets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-matched">-</div>
+                <div class="stat-label">Matched Markets</div>
+            </div>
+            <div class="stat-card positive">
+                <div class="stat-value" id="stat-positive">-</div>
+                <div class="stat-label">Positive EV</div>
+            </div>
+        </div>
+
+        <!-- Scheduler Control -->
+        <div class="scheduler-control">
+            <div class="scheduler-header">
+                <h3>🤖 Auto-Scraping</h3>
+                <div class="scheduler-status">
+                    <span id="scheduler-status-indicator" class="status-dot status-off"></span>
+                    <span id="scheduler-status-text">Stopped</span>
+                </div>
+            </div>
+
+            <div class="scheduler-controls">
+                <div class="scheduler-settings">
+                    <label for="scrape-interval">Interval (minutes):</label>
+                    <input type="number" id="scrape-interval" value="5" min="1" max="60" step="1">
+
+                    <button class="btn btn-success" id="scheduler-start-btn" onclick="startScheduler()">
+                        ▶ Start Auto-Scraping
+                    </button>
+                    <button class="btn btn-danger" id="scheduler-stop-btn" onclick="stopScheduler()"
+                        style="display: none;">
+                        ⏹ Stop Auto-Scraping
+                    </button>
+                </div>
+
+                <div class="scheduler-info">
+                    <div class="scheduler-info-item">
+                        <span class="info-label">Last Pinnacle:</span>
+                        <span id="last-pinnacle-scrape">Never</span>
+                    </div>
+                    <div class="scheduler-info-item">
+                        <span class="info-label">Last CS500:</span>
+                        <span id="last-cs500-scrape">Never</span>
+                    </div>
+                    <div class="scheduler-info-item">
+                        <span class="info-label">Next Run:</span>
+                        <span id="next-scrape">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <button class="btn btn-primary" onclick="scrapeAll()">
+                    🔄 Scrape All & Match
+                </button>
+                <button class="btn btn-secondary" onclick="scrapePinnacle()">
+                    📊 Scrape Pinnacle
+                </button>
+                <button class="btn btn-secondary" onclick="scrapeCS500()">
+                    🎮 Scrape CS500
+                </button>
+                <button class="btn btn-secondary" onclick="matchMarkets()">
+                    🔗 Match Markets
+                </button>
+                <button class="btn btn-warning" onclick="rematchMarkets()"
+                    title="Clear and re-run matching with improved algorithm">
+                    🔄 Re-Match All
+                </button>
+            </div>
+
+            <div class="control-group">
+                <label for="sport-filter">Sport:</label>
+                <select id="sport-filter" onchange="loadMarkets()">
+                    <option value="">All Sports</option>
+                    <option value="cs2">CS2</option>
+                    <option value="lol">League of Legends</option>
+                </select>
+
+                <label for="ev-method">EV Method:</label>
+                <select id="ev-method" onchange="loadMarkets()">
+                    <option value="power">Power (k=1.07)</option>
+                    <option value="mult">Multiplicative</option>
+                </select>
+
+                <label for="min-ev">Min EV %:</label>
+                <input type="number" id="min-ev" value="0" step="0.5" min="-10" max="50" onchange="loadMarkets()">
+
+                <label>
+                    <input type="checkbox" id="positive-only" checked onchange="loadMarkets()">
+                    Positive EV Only
+                </label>
+
+                <button class="btn btn-refresh" onclick="loadMarkets()">
+                    🔄 Refresh
+                </button>
+
+                <button class="btn btn-warning" onclick="showUnmatchedMarkets()">
+                    ⚠️ View Unmatched (<span id="unmatched-count">0</span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Unmatched Markets Modal -->
+        <div id="unmatched-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>⚠️ Unmatched Markets</h2>
+                    <button class="modal-close" onclick="closeUnmatchedModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="unmatched-section">
+                        <h3>Pinnacle Markets (No CS500 Match)</h3>
+                        <div id="unmatched-pinnacle-list" class="unmatched-list"></div>
+                    </div>
+                    <div class="unmatched-section">
+                        <h3>CS500 Markets (No Pinnacle Match)</h3>
+                        <div id="unmatched-cs500-list" class="unmatched-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Match Details Modal -->
+        <div id="match-details-modal" class="modal" style="display: none;">
+            <div class="modal-content modal-content-large">
+                <div class="modal-header">
+                    <h2>📊 Match Details</h2>
+                    <button class="modal-close" onclick="closeMatchDetailsModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div id="match-details-content">
+                        <!-- Content will be dynamically loaded -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Place Bet Modal -->
+        <div id="bet-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>💰 Place Bet</h2>
+                    <button class="modal-close" onclick="closeBetModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="bet-form">
+                        <div class="bet-info">
+                            <h3 id="bet-match-info"></h3>
+                            <div class="bet-details">
+                                <div><strong>Event:</strong> <span id="bet-event"></span></div>
+                                <div><strong>Betting On:</strong> <span id="bet-team"></span></div>
+                                <div><strong>CS500 Odds:</strong> <span id="bet-odds"></span></div>
+                                <div><strong>Fair Odds:</strong> <span id="bet-fair-odds"></span></div>
+                                <div><strong>EV:</strong> <span id="bet-ev"></span></div>
+                            </div>
+                        </div>
+                        <div class="bet-inputs">
+                            <label for="bet-stake">Stake Amount ($):</label>
+                            <input type="number" id="bet-stake" min="0" step="0.01" value="10"
+                                oninput="updateBetCalculations()">
+
+                            <label for="bet-notes">Notes (optional):</label>
+                            <textarea id="bet-notes" rows="3" placeholder="Add any notes about this bet..."></textarea>
+
+                            <div class="bet-calculations">
+                                <div><strong>Potential Return:</strong> $<span id="bet-potential-return">0.00</span>
+                                </div>
+                                <div><strong>Potential Profit:</strong> $<span id="bet-potential-profit">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bet-actions">
+                            <button class="btn btn-success" onclick="confirmPlaceBet()">Place Bet</button>
+                            <button class="btn btn-secondary" onclick="closeBetModal()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Markets Table -->
+        <div class="table-container">
+            <table id="markets-table">
+                <thead>
+                    <tr>
+                        <th>Sport</th>
+                        <th>Event</th>
+                        <th>Teams</th>
+                        <th>Start Time</th>
+                        <th>Best Bet</th>
+                        <th>Fair Odds (Power)</th>
+                        <th>Fair Odds (Mult)</th>
+                        <th>CS500 Odds</th>
+                        <th>EV % <span id="ev-method-indicator"></span></th>
+                        <th>Implied Prob</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="markets-body">
+                    <tr>
+                        <td colspan="11" class="no-data">No markets found. Click "Scrape All & Match" to get started.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message" style="display: none;"></div>
+    </div>
+
+    <script src="/static/script.js?v=4"></script>
+</body>
+
+</html>

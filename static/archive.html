@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Archive - Esports EV Finder</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Match Archive</h1>
+            <p class="subtitle">Historical match data with closing line values</p>
+            <nav class="header-nav">
+                <a href="/" class="nav-link">Markets</a>
+                <a href="/bets" class="nav-link">Bet Logs</a>
+                <a href="/archive" class="nav-link active">Archive</a>
+            </nav>
+        </header>
+
+        <!-- Archive Stats Dashboard -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total-archived">-</div>
+                <div class="stat-label">Total Archived</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-with-closing">-</div>
+                <div class="stat-label">With Closing Lines</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-capture-rate">-%</div>
+                <div class="stat-label">Capture Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-with-bets">-</div>
+                <div class="stat-label">Had Bets</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>📊 Closing Line Movement Distribution</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="clv-distribution-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container-wrapper">
+                <div class="chart-header">
+                    <h3>📈 Matches Over Time</h3>
+                </div>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="matches-timeline-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <button class="btn btn-primary" onclick="loadArchive()">
+                    🔄 Refresh
+                </button>
+
+                <button class="btn btn-danger" onclick="clearArchive()">
+                    🗑️ Clear Archive
+                </button>
+
+                <label for="sport-filter-archive">Sport:</label>
+                <select id="sport-filter-archive" onchange="loadArchive()">
+                    <option value="">All Sports</option>
+                    <option value="cs2">CS2</option>
+                    <option value="lol">League of Legends</option>
+                </select>
+
+                <label for="limit-filter">Show:</label>
+                <select id="limit-filter" onchange="loadArchive()">
+                    <option value="50">Last 50</option>
+                    <option value="100">Last 100</option>
+                    <option value="250">Last 250</option>
+                    <option value="">All</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Archive Table -->
+        <div class="table-container">
+            <table id="archive-table">
+                <thead>
+                    <tr>
+                        <th>Start Time</th>
+                        <th>Sport</th>
+                        <th>Event</th>
+                        <th>Match</th>
+                        <th>Opening Odds</th>
+                        <th>Closing Odds</th>
+                        <th>Line Movement</th>
+                        <th>Bets</th>
+                        <th>Avg CLV</th>
+                        <th>Best EV%</th>
+                    </tr>
+                </thead>
+                <tbody id="archive-body">
+                    <tr>
+                        <td colspan="10" class="no-data">No archived matches found</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message" style="display: none;"></div>
+    </div>
+
+    <script src="/static/archive.js"></script>
+</body>
+
+</html>

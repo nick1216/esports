@@ -171,6 +171,14 @@ try:
             cs500_game.get("away_team", "")
         )
         
+        # CRITICAL: Both teams must match reasonably well
+        # Use minimum instead of average to ensure both teams match
+        min_team_sim = min(home_sim, away_sim)
+        
+        # If either team has very low similarity, reject the match
+        if min_team_sim < 0.5:
+            return 0.0
+        
         # Time proximity (if available)
         time_score = 0.0
         if "start_time" in pinnacle_game and "start_time" in cs500_game:
@@ -180,9 +188,9 @@ try:
                 time_diff = abs((p_time - c_time).total_seconds())
                 
                 if time_diff < 3600:  # Within 1 hour
-                    time_score = 0.2
+                    time_score = 0.15
                 elif time_diff < 7200:  # Within 2 hours
-                    time_score = 0.1
+                    time_score = 0.08
             except:
                 pass
         
@@ -193,8 +201,11 @@ try:
         if p_sport == c_sport:
             sport_score = 0.1
         
-        # Combined score
-        team_score = (home_sim + away_sim) / 2
+        # Combined score - use average of both teams, but weighted by minimum
+        # This ensures both teams must have decent similarity
+        avg_team_sim = (home_sim + away_sim) / 2
+        team_score = avg_team_sim * (0.7 + 0.3 * (min_team_sim / avg_team_sim))
+        
         total_score = team_score + time_score + sport_score
         
         return min(1.0, total_score)
@@ -232,7 +243,18 @@ except ImportError:
             pinnacle_game.get("away_team", ""), 
             cs500_game.get("away_team", "")
         )
-        return (home_sim + away_sim) / 2
+        
+        # CRITICAL: Both teams must match
+        # Use minimum to ensure both teams have good similarity
+        min_team_sim = min(home_sim, away_sim)
+        
+        # If either team has very low similarity, reject
+        if min_team_sim < 0.6:
+            return 0.0
+        
+        # Return average weighted by minimum similarity
+        avg_sim = (home_sim + away_sim) / 2
+        return avg_sim * (0.7 + 0.3 * (min_team_sim / avg_sim))
     
     def find_best_match(pinnacle_game: dict, cs500_games: list) -> tuple[Optional[dict], float]:
         """Fallback: find best match using basic similarity."""

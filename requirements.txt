@@ -1,6 +1,19 @@
-requests
-aiohttp
-nodriver
-uvicorn
-fastapi
-apscheduler
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# HTTP Requests
+requests==2.31.0
+aiohttp==3.9.1
+
+# Browser Automation
+nodriver==0.28
+
+# Scheduling
+apscheduler==3.10.4
+
+# Data Validation
+pydantic==2.5.0
+
+# Python Standard Library (usually included, but explicit for Railway)
+python-multipart==0.0.6

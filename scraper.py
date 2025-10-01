@@ -199,6 +199,12 @@ class PinnacleScraper:
                 mult_home, mult_away = self.multiplicative_devig(home_odds_raw, away_odds_raw)
                 power_home, power_away = self.power_method_devig(home_odds_raw, away_odds_raw)
                 
+                # Calculate the actual fair probabilities (these will sum to exactly 100%)
+                power_home_prob = 1.0 / power_home
+                power_away_prob = 1.0 / power_away
+                mult_home_prob = 1.0 / mult_home
+                mult_away_prob = 1.0 / mult_away
+                
                 market_data = {
                     'id': matchup_id,
                     'event': matchup_data['event'],
@@ -208,6 +214,10 @@ class PinnacleScraper:
                     'away_fair_odds': round(power_away, 2),  # Power method (default)
                     'home_mult_odds': round(mult_home, 2),  # Multiplicative method
                     'away_mult_odds': round(mult_away, 2),  # Multiplicative method
+                    'home_fair_prob': round(power_home_prob, 6),  # Store exact probability
+                    'away_fair_prob': round(power_away_prob, 6),  # Store exact probability
+                    'home_mult_prob': round(mult_home_prob, 6),  # Store exact probability
+                    'away_mult_prob': round(mult_away_prob, 6),  # Store exact probability
                     'start_time': matchup_data.get('start_time')
                 }
                 

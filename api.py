@@ -159,11 +159,32 @@ async def scheduled_match_markets():
         logger.error(f"❌ Scheduled matching failed: {str(e)}")
 
 
+async def scheduled_capture_closing_lines():
+    """Background task to capture closing lines for markets near start time."""
+    try:
+        logger.info("🔄 Capturing closing lines")
+        count = db.capture_closing_lines()
+        if count > 0:
+            logger.info(f"✅ Captured closing lines for {count} markets")
+            # Update CLV for any bets on those markets
+            clv_count = db.update_all_pending_clv()
+            if clv_count > 0:
+                logger.info(f"✅ Updated CLV for {clv_count} bets")
+        
+        # Delete matches that have started but have no EV data
+        deleted = db.delete_started_matches_without_ev()
+        if deleted > 0:
+            logger.info(f"🗑️ Deleted {deleted} started matches without EV data")
+    except Exception as e:
+        logger.error(f"❌ Closing line capture failed: {str(e)}")
+
+
 async def scheduled_scrape_all():
     """Combined scheduled task: scrape both sources and match."""
     await scheduled_scrape_pinnacle()
     await scheduled_scrape_cs500()
     await scheduled_match_markets()
+    await scheduled_capture_closing_lines()
 
 
 @app.on_event("startup")
@@ -196,6 +217,12 @@ async def root():
 async def bets_page():
     """Serve the bet logs page."""
     return FileResponse("static/bets.html")
+
+
+@app.get("/archive")
+async def archive_page():
+    """Serve the match archive page."""
+    return FileResponse("static/archive.html")
 
 
 @app.post("/cs500_matchids")
@@ -466,6 +493,58 @@ async def clear_data():
         raise HTTPException(status_code=500, detail=f"Failed to clear data: {str(e)}")
 
 
+@app.post("/api/rematch")
+async def rematch_markets():
+    """Clear existing mappings and re-run matching with improved algorithm."""
+    try:
+        # Clear existing mappings
+        db.clear_match_mappings()
+        
+        # Re-run matching
+        pinnacle_markets = db.get_active_pinnacle_markets()
+        cs500_markets = db.get_active_cs500_markets()
+        
+        matched_count = 0
+        
+        for p_market in pinnacle_markets:
+            p_game = {
+                "home_team": p_market["home_team"],
+                "away_team": p_market["away_team"],
+                "event": p_market["event"],
+                "start_time": p_market.get("start_time")
+            }
+            
+            cs500_games = []
+            for c_market in cs500_markets:
+                cs500_games.append({
+                    "home_team": c_market["home_team"],
+                    "away_team": c_market["away_team"],
+                    "event_name": c_market["event_name"],
+                    "start_time": c_market.get("start_time"),
+                    "match_id": c_market["match_id"]
+                })
+            
+            best_match, confidence = find_best_match(p_game, cs500_games)
+            
+            if best_match and confidence > 0.6:
+                db.store_match_mapping(
+                    p_market["id"],
+                    best_match["match_id"],
+                    confidence
+                )
+                matched_count += 1
+        
+        return {
+            "status": "success",
+            "message": f"Re-matched markets with improved algorithm",
+            "matched_count": matched_count,
+            "total_pinnacle": len(pinnacle_markets),
+            "total_cs500": len(cs500_markets)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rematch markets: {str(e)}")
+
+
 # Scheduler Control Endpoints
 
 @app.post("/api/scheduler/start")
@@ -671,6 +750,143 @@ async def get_bet_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get bet stats: {str(e)}")
+
+
+@app.get("/api/match/{pinnacle_id}")
+async def get_match_details(pinnacle_id: str):
+    """Get detailed information about a specific match."""
+    try:
+        match_details = db.get_match_details(pinnacle_id)
+        if not match_details:
+            raise HTTPException(status_code=404, detail="Match not found")
+        return {
+            "status": "success",
+            "match": match_details
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get match details: {str(e)}")
+
+
+@app.post("/api/closing_lines/capture")
+async def capture_closing_lines():
+    """Manually trigger capturing of closing lines for markets near start time."""
+    try:
+        count = db.capture_closing_lines()
+        return {
+            "status": "success",
+            "message": f"Captured closing lines for {count} markets",
+            "markets_updated": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to capture closing lines: {str(e)}")
+
+
+@app.post("/api/clv/update")
+async def update_clv():
+    """Update CLV for all bets that have closing lines available."""
+    try:
+        count = db.update_all_pending_clv()
+        return {
+            "status": "success",
+            "message": f"Updated CLV for {count} bets",
+            "bets_updated": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update CLV: {str(e)}")
+
+
+@app.post("/api/clv/update/{bet_id}")
+async def update_bet_clv_endpoint(bet_id: int):
+    """Update CLV for a specific bet."""
+    try:
+        success = db.update_bet_clv(bet_id)
+        if not success:
+            return {
+                "status": "warning",
+                "message": "Closing line not available yet for this bet",
+                "updated": False
+            }
+        return {
+            "status": "success",
+            "message": f"CLV updated for bet {bet_id}",
+            "updated": True
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update bet CLV: {str(e)}")
+
+
+@app.get("/api/archive/matches")
+async def get_archived_matches(sport: Optional[str] = None, limit: Optional[int] = None):
+    """Get all archived matches (past their start time) with closing line data."""
+    try:
+        matches = db.get_archived_matches(sport, limit)
+        return {
+            "status": "success",
+            "count": len(matches),
+            "matches": matches
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get archived matches: {str(e)}")
+
+
+@app.get("/api/archive/matches/{pinnacle_id}")
+async def get_archived_match_details_endpoint(pinnacle_id: str):
+    """Get detailed information about a specific archived match."""
+    try:
+        match_details = db.get_archived_match_details(pinnacle_id)
+        if not match_details:
+            raise HTTPException(status_code=404, detail="Archived match not found")
+        return {
+            "status": "success",
+            "match": match_details
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get archived match details: {str(e)}")
+
+
+@app.get("/api/archive/stats")
+async def get_archive_stats_endpoint():
+    """Get statistics about the archive."""
+    try:
+        stats = db.get_archive_stats()
+        return {
+            "status": "success",
+            "stats": stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get archive stats: {str(e)}")
+
+
+@app.delete("/api/archive/clear")
+async def clear_archive():
+    """Clear all archived matches."""
+    try:
+        count = db.clear_archived_matches()
+        return {
+            "status": "success",
+            "message": f"Cleared {count} archived matches",
+            "deleted_count": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear archive: {str(e)}")
+
+
+@app.post("/api/archive/cleanup")
+async def cleanup_matches_without_ev():
+    """Manually trigger cleanup of started matches without EV data."""
+    try:
+        count = db.delete_started_matches_without_ev()
+        return {
+            "status": "success",
+            "message": f"Deleted {count} matches without EV data",
+            "deleted_count": count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup matches: {str(e)}")
 
 
 # Mount static files directory (will serve HTML/CSS/JS)
