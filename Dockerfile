@@ -1,12 +1,10 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies for Chrome and Xvfb
+# Install system dependencies for headless Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
-    xvfb \
-    x11-utils \
     chromium \
     chromium-driver \
     fonts-liberation \
@@ -54,7 +52,6 @@ EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV DISPLAY=:99
 
 # Start application
 CMD ["./start.sh"]

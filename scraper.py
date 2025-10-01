@@ -340,10 +340,10 @@ class CS500Scraper:
         games: List[str] = ["lol", "cs2"]
 
         try:
-            # Run in headed mode - Xvfb provides virtual display
-            # This avoids headless detection by anti-bot systems
+            # Try headless mode with stealth configurations
+            # nodriver has built-in anti-detection that works in headless
             
-            # Browser arguments for Docker/Railway environment
+            # Browser arguments for stealth in Docker/Railway
             browser_args = [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -352,7 +352,10 @@ class CS500Scraper:
                 "--disable-software-rasterizer",
                 "--disable-extensions",
                 "--window-size=1920,1080",
-                "--start-maximized",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-web-security",
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             ]
             
             # Add proxy configuration if provided
@@ -361,11 +364,11 @@ class CS500Scraper:
                 print(f"🌐 Browser configured with proxy: {self.proxy_server}")
             
             browser_config = {
-                "headless": False,
+                "headless": True,  # Try headless with stealth
                 "browser_args": browser_args,
             }
             
-            print(f"🔧 Browser config: headless=False, display={os.getenv('DISPLAY', 'not set')}")
+            print(f"🔧 Browser config: headless=True (with stealth), proxy={bool(self.proxy_server)}")
             
             browser = await uc.start(**browser_config)
         except Exception as e:
@@ -402,29 +405,55 @@ class CS500Scraper:
                     try:
                         print(f"🔍 [{g}] Attempt {attempt + 1}/{max_retries}: Waiting for page to load...")
                         
-                        # Increased timeout for proxy connections
-                        await page.wait_for('#betby', timeout=45)
-                        print(f"✅ [{g}] Page loaded, looking for host element...")
+                        # Wait for page to fully render
+                        await asyncio.sleep(8)
                         
+                        # Check if #betby element exists
+                        try:
+                            await page.wait_for('#betby', timeout=45)
+                            print(f"✅ [{g}] #betby element found, looking for host...")
+                        except Exception as e:
+                            print(f"⚠️ [{g}] #betby not found: {e}")
+                            # Try to continue anyway - element might not be required
+                        
+                        # Try to find the host element with shadow DOM
                         host = await page.select('div[style*="background-color: rgb(30, 28, 37)"]')
                         
                         if not host:
                             print(f"⚠️ [{g}] Host element not found, attempt {attempt + 1}/{max_retries}")
                             if attempt < max_retries - 1:
-                                print(f"⏳ [{g}] Waiting 5 seconds before retry...")
-                                await asyncio.sleep(5)  # Longer wait for proxy
-                                # Try reloading the page
-                                await page.reload()
+                                print(f"⏳ [{g}] Waiting 10 seconds before retry...")
+                                await asyncio.sleep(10)
+                                # Try navigating to the page again
+                                print(f"🔄 [{g}] Re-navigating to page...")
+                                await page.get(path)
                                 continue
                             else:
                                 print(f"❌ [{g}] Failed to find host element after all retries")
+                                print(f"💡 [{g}] CS500 page structure may have changed")
                                 break
                         
-                        await host.update()
-                        root = host.shadow_children[0]
+                        print(f"✅ [{g}] Host element found, accessing shadow DOM...")
+                        
+                        try:
+                            await host.update()
+                            if not host.shadow_children or len(host.shadow_children) == 0:
+                                print(f"⚠️ [{g}] No shadow children found")
+                                continue
+                            
+                            root = host.shadow_children[0]
+                            print(f"✅ [{g}] Shadow root accessed")
+                        except Exception as e:
+                            print(f"❌ [{g}] Shadow DOM access failed: {e}")
+                            continue
 
                         links = await root.query_selector_all('[data-editor-id="eventCardContent"]')
                         print(f"🎯 [{g}] Found {len(links)} match links")
+                        
+                        if len(links) == 0:
+                            print(f"⚠️ [{g}] No match links found - CS500 may have no events")
+                            break
+                        
                         await self.fetch_matchids(links)
 
 
