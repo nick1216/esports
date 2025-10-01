@@ -214,6 +214,36 @@ async def root():
     return FileResponse("static/index.html")
 
 
+@app.get("/api/check-ip")
+async def check_railway_ip():
+    """
+    Check Railway's outbound IP address by calling ipify.org.
+    This is the IP that needs to be whitelisted at ProxyScrape.
+    """
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.ipify.org?format=json', timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "status": "success",
+                        "railway_ip": data.get("ip"),
+                        "message": f"Railway's outbound IP is: {data.get('ip')}",
+                        "instruction": "Whitelist this IP address in your ProxyScrape dashboard"
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"Failed to check IP: HTTP {response.status}"
+                    }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to check IP: {str(e)}"
+        }
+
+
 @app.get("/bets")
 async def bets_page():
     """Serve the bet logs page."""

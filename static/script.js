@@ -451,6 +451,34 @@ async function scrapeAll() {
 }
 
 // Re-match markets with improved algorithm
+async function checkRailwayIP() {
+  showLoading();
+  showStatus("🔍 Checking Railway's outbound IP address...", "info");
+
+  try {
+    const response = await fetch(`${API_BASE}/api/check-ip`);
+    const data = await response.json();
+
+    if (data.status === "success") {
+      showStatus(
+        `✅ Railway IP: ${data.railway_ip} - Whitelist this in ProxyScrape!`,
+        "success"
+      );
+      // Show alert with the IP
+      alert(
+        `Railway's Outbound IP Address:\n\n${data.railway_ip}\n\nWhitelist this IPv4 address in your ProxyScrape dashboard under "IP Authentication".\n\nWait 10 minutes after whitelisting for changes to propagate.`
+      );
+    } else {
+      showStatus(`❌ Failed to check IP: ${data.message}`, "error");
+    }
+  } catch (error) {
+    console.error("Failed to check Railway IP:", error);
+    showStatus("Failed to check Railway IP", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
 async function rematchMarkets() {
   showLoading();
   showStatus(
