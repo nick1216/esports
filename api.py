@@ -8,8 +8,13 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import os
 import logging
+import warnings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
+# Suppress aiohttp TLS-in-TLS warning for HTTPS proxy usage
+# The proxy works correctly despite the warning
+warnings.filterwarnings('ignore', message='.*HTTPS.*proxy.*TLS in TLS.*')
 
 from database import Database
 from scraper import PinnacleScraper, CS500Scraper

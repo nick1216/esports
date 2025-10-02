@@ -529,11 +529,10 @@ class CS500Scraper:
 
     async def get_markets(self, match_ids: List[str]) -> List[Dict[str, Any]]:
         """
-        Asynchronously fetch markets for all match IDs.
+        Fetch markets for all match IDs using requests library (better proxy support).
         
         Args:
             match_ids: List of match IDs to fetch markets for
-            game: Optional game filter (not used in current implementation)
             
         Returns:
             List of market data dictionaries sorted by start_time
@@ -544,7 +543,7 @@ class CS500Scraper:
         # Define headers for API requests
         headers = {
             "Accept": "*/*",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-US,en;q=0.9",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
@@ -561,73 +560,68 @@ class CS500Scraper:
             "sec-ch-ua-platform": '"Windows"'
         }
         
-        async def fetch_single_market(session: aiohttp.ClientSession, match_id: str) -> Optional[Dict[str, Any]]:
-            """Fetch market data for a single match ID (no proxy)."""
-            try:
-                url = f"{self.base_url}/{match_id}"
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return self._parse_market_data(data, match_id)
-                    else:
-                        print(f"Failed to fetch market for match {match_id}: HTTP {response.status}")
-                        return None
-            except Exception as e:
-                print(f"Error fetching market for match {match_id}: {e}")
-                return None
-        
-        async def fetch_single_market_with_proxy(session: aiohttp.ClientSession, match_id: str, proxy: str) -> Optional[Dict[str, Any]]:
-            """Fetch market data for a single match ID through proxy."""
-            try:
-                url = f"{self.base_url}/{match_id}"
-                async with session.get(url, headers=headers, proxy=proxy) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return self._parse_market_data(data, match_id)
-                    else:
-                        print(f"⚠️ Failed to fetch market {match_id} via proxy: HTTP {response.status}")
-                        return None
-            except Exception as e:
-                print(f"❌ Error fetching market {match_id} via proxy: {e}")
-                return None
-        
-        # Create session with timeout and proxy
-        timeout = aiohttp.ClientTimeout(total=30)
-        
-        # Configure proxy for aiohttp if available
-        connector = None
+        # Setup proxy for requests library (handles HTTPS proxies properly)
+        proxies = None
         if self.proxy_server:
-            print(f"🌐 Using proxy for market API calls: {self.proxy_server}")
-            # aiohttp uses a different proxy format
-            connector = aiohttp.TCPConnector()
+            proxies = {
+                'http': self.proxy_server,
+                'https': self.proxy_server
+            }
+            print(f"🌐 Using proxy for market API calls: {self.proxy_server[:50]}...")
         
-        session_kwargs = {"timeout": timeout}
-        if connector:
-            session_kwargs["connector"] = connector
+        def fetch_single_market_sync(match_id: str) -> Optional[Dict[str, Any]]:
+            """Fetch market data for a single match ID (synchronous)."""
+            try:
+                url = f"{self.base_url}/{match_id}"
+                response = requests.get(
+                    url, 
+                    headers=headers, 
+                    proxies=proxies,
+                    timeout=30,
+                    verify=True  # Verify SSL certificates
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    return self._parse_market_data(data, match_id)
+                else:
+                    print(f"⚠️ Failed to fetch market {match_id}: HTTP {response.status_code}")
+                    return None
+            except requests.exceptions.ProxyError as e:
+                print(f"❌ Proxy error for match {match_id}: {e}")
+                return None
+            except requests.exceptions.Timeout:
+                print(f"⚠️ Timeout fetching market {match_id}")
+                return None
+            except Exception as e:
+                print(f"❌ Error fetching market {match_id}: {e}")
+                return None
         
-        async with aiohttp.ClientSession(**session_kwargs) as session:
-            # Create tasks for all match IDs
-            # Pass proxy URL to each request
-            if self.proxy_server:
-                tasks = [fetch_single_market_with_proxy(session, match_id, self.proxy_server) for match_id in match_ids]
-            else:
-                tasks = [fetch_single_market(session, match_id) for match_id in match_ids]
+        # Use ThreadPoolExecutor to run synchronous requests concurrently
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        markets = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit all tasks
+            future_to_match_id = {
+                executor.submit(fetch_single_market_sync, match_id): match_id 
+                for match_id in match_ids
+            }
             
-            # Execute all requests concurrently
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Filter out None results and exceptions
-            markets = []
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    print(f"Exception for match {match_ids[i]}: {result}")
-                elif result is not None:
-                    markets.append(result)
-            
-            # Sort by start_time
-            markets.sort(key=lambda x: x.get('start_time', 0))
-            
-            return markets
+            # Collect results as they complete
+            for future in as_completed(future_to_match_id):
+                try:
+                    result = future.result()
+                    if result:
+                        markets.append(result)
+                except Exception as e:
+                    match_id = future_to_match_id[future]
+                    print(f"Exception for match {match_id}: {e}")
+        
+        # Sort by start_time
+        markets.sort(key=lambda x: x.get('start_time', 0))
+        
+        return markets
     
     def _parse_market_data(self, data: Dict[str, Any], match_id: str) -> Dict[str, Any]:
         """
