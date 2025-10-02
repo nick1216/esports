@@ -103,7 +103,7 @@ class CS500ScraperPlaywright:
                 if browser_type == 'firefox':
                     # Firefox - often faster and lighter than Chromium
                     browser = await playwright.firefox.launch(
-                        headless=False,
+                        headless=True,  # Headless for server environment
                         proxy=proxy_config,
                         firefox_user_prefs={
                             'media.peerconnection.enabled': False,  # Disable WebRTC
@@ -115,13 +115,13 @@ class CS500ScraperPlaywright:
                 elif browser_type == 'webkit':
                     # WebKit (Safari engine) - lightest option
                     browser = await playwright.webkit.launch(
-                        headless=False,
+                        headless=True,  # Headless for server environment
                         proxy=proxy_config
                     )
                 else:  # chromium (default fallback)
                     # Chromium - most compatible but slower
                     browser = await playwright.chromium.launch(
-                        headless=False,
+                        headless=True,  # Headless for server environment
                         proxy=proxy_config,
                         args=[
                             "--no-sandbox",
